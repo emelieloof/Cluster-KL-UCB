@@ -1,1 +1,149 @@
+import numpy as np 
+import matplotlib.pyplot as plt 
+import pandas as pd
+from scipy import stats
 
+class MAB_ucb:
+    '''
+    Inputs 
+    k = number of arms 
+    c = exploration parameter 
+    N: number of iterations 
+    mu: Defines how to set the average rewards for the arms.
+        "random": rewards drawn from a normal distribution with mean = 0. 
+        "sequence": get ordered means from 0 to k-1.
+        Or give vector of values if one wants to set each value separatly (input as list). 
+    '''
+    def __init__(self, k, c, N, mu='random'):
+        self.k = k
+        self.c = c
+        self.N = N
+        self.steps = 1
+        self.k_n = np.ones(k)
+        self.mean_reward = 0
+        self.reward = np.zeros(N)
+        self.k_reward = np.zeros(k)
+        
+        if type(mu) == list:            
+            self.mu = np.array(mu)
+        elif mu == 'random':
+            self.mu = np.random.normal(0, 1, k)
+        elif mu == 'sequence':
+            self.mu = np.linspace(0, k-1, k)
+        
+    def pull(self):
+        action = np.argmax(self.k_reward + self.c * np.sqrt(
+                (np.log(self.steps)) / self.k_n))
+            
+        reward = np.random.normal(self.mu[action], 1)
+        
+        self.steps += 1
+        self.k_n[action] += 1
+        
+        self.mean_reward = self.mean_reward + (
+            reward - self.mean_reward) / self.steps
+        
+        self.k_reward[action] = self.k_reward[action] + (
+            reward - self.k_reward[action]) / self.k_n[action]
+        
+    def run(self):
+        for i in range(self.N):
+            self.pull()
+            self.reward[i] = self.mean_reward
+            
+    def reset(self, mu=None):
+        self.steps = 1
+        self.k_n = np.ones(self.k)
+        self.mean_reward = 0
+        self.reward = np.zeros(N)
+        self.k_reward = np.zeros(self.k)
+        if mu == 'random':
+            self.mu = np.random.normal(0, 1, self.k)
+            
+            
+            
+ class MAB_thompson:
+  '''
+  Inputs: 
+  k = Number of arms
+  N = number of iterations
+  mu = True probability of winning for each bandit, If 'random' sample probability from N(0.5, 0.05), 
+      or give vector of values if one wants to set each value separatly (input as list).  
+  '''
+
+  def __init__(self, k, N, mu='random'):
+    self.k = k
+    self.N = N
+    self.trials = np.zeros(k)
+    self.wins = np.zeros(k)
+    self.priors = np.zeros(k)
+    self.probs = np.zeros(k)
+
+    if type(mu) == list:
+      self.mu = np.array(mu)
+    elif mu == 'random':
+      self.mu = np.random.normal(0.5, 0.05, self.k)
+
+  def pull(self,i):
+    if np.random.rand() < self.mu[i]:
+      return 1
+    else:
+      return 0
+
+  def run(self):
+    for step in range(N):
+      self.priors = [stats.beta(a=1+w, b=1+t-w) for t, w in zip(self.trials, self.wins)]
+      theta_samples = np.array([sample.rvs(1) for sample in self.priors])
+      chosen_bandit = np.argmax(theta_samples)
+      
+      x = self.pull(chosen_bandit)
+      self.trials[chosen_bandit] += 1
+      self.wins[chosen_bandit] += x
+      curr_prob = self.wins[chosen_bandit]/self.trials[chosen_bandit]
+      self.probs[chosen_bandit] = self.probs[chosen_bandit] + (curr_prob - self.probs[chosen_bandit])/self.trials[chosen_bandit]
+
+  def reset(self):
+    self.trials = np.zeros(k)
+    self.wins = np.zeros(k)
+    self.priors = np.zeros(k)
+    self.probs = np.zeros(k)
+        
+
+k = 10 
+N = 1000
+ucb_rewards = np.zeros(N)
+thompson_probs = np.zeros(k)
+ucb = MAB_ucb(k, 2, N)
+thompson = MAB_thompson(k,N)
+
+runs = 10
+
+for i in range(runs): 
+    ucb.reset('random')
+    thompson.reset()
+    ucb.run()
+    thompson.run()
+    
+    ucb_rewards = ucb_rewards + (
+        ucb.reward - ucb_rewards) / (i + 1)
+
+    thompson_probs = thompson_probs + (thompson.probs - thompson_probs) / (i+1)
+    
+plt.figure(figsize=(12,8))
+plt.plot(ucb_rewards, label="UCB")
+plt.legend(bbox_to_anchor=(1.2, 0.5))
+plt.xlabel("Iterations")
+plt.ylabel("Average Reward")
+plt.title("Average UCB Rewards after " 
+          + str(runs) + " Runs")
+plt.show()
+
+plt.figure(figsize=(12,8))
+plt.plot(thompson_probs, label="Empirical probability")
+plt.plot(thompson.mu, label = 'True probability')
+plt.legend(bbox_to_anchor=(1.2, 0.5))
+plt.xlabel("Arms")
+plt.ylabel("Probability")
+plt.title("Average probability after " 
+          + str(runs) + " Runs with Thompson sampling")
+plt.show()
