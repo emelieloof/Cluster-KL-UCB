@@ -9,15 +9,19 @@ class MAB_ucb:
 
     def __init__(self, k, c):
         self.steps = 1
-        self.counts = np.ones(k)
+        self.counts = np.zeros(k)
+        self.k = k
         self.c = c
     
     def initialize(self,k):
       self.steps = 1
-      self.counts = np.ones(k)
+      self.counts = np.zeros(k)
         
     def select_arm(self, k_reward, counts):
-        arm = np.argmax(k_reward/counts + self.c * np.sqrt(
+        if self.steps <= self.k:
+            arm = self.steps - 1
+        else:
+            arm = np.argmax(k_reward/counts + self.c * np.sqrt(
                 (np.log(self.steps)) / self.counts))
         return arm
     
@@ -65,21 +69,33 @@ class BernoulliArm():
         else:
             return 1
 
+class BernoulliBandit:
+    def __init__(self, theta):
+        self.k = len(theta)
+        self.sub_optimality = np.max(theta) - theta
+        self.arms = list(map(lambda m: BernoulliArm(m), mu))
+
+    def draw(self, i):
+        return self.arms[i].draw()
+
+    def regret(self, i):
+        return self.sub_optimality[i]
+
         
 
-def run_algo_UCB(algo, arms,rewards, N, runs):
+def run_algo_UCB(algo, bandit, rewards, N, runs):
   cumulative_rewards = np.zeros(runs)
   cumulative_regret = np.zeros(runs)
   for sim in range(N):
-    algo.initialize(len(arms))
+    algo.initialize(bandit.k)
     new_c_rewards = np.zeros(runs)
     new_c_regrets = np.zeros(runs)
-    counts = np.zeros(len(arms))
+    counts = np.zeros(bandit.k)
     for t in range(runs):
       chosen_arm = algo.select_arm(rewards, counts)
       counts[chosen_arm] += 1
-      reward = arms[chosen_arm].draw()
-      regret = 1-reward
+      reward = bandit.draw(chosen_arm)
+      regret = bandit.regret(chosen_arm)
       if t == 0:
         new_c_rewards[t] = reward
         new_c_regrets[t] = regret
@@ -96,19 +112,17 @@ def run_algo_UCB(algo, arms,rewards, N, runs):
   
   
   
-def run_algo_TS(algo, arms, N, runs):
-   cumulative_rewards = np.zeros(runs)
-   cumulative_regret = np.zeros(runs)
-  
-   for sim in range(N):
-       algo.initialize(len(arms))
-       new_c_rewards = np.zeros(runs)
-       new_c_regrets = np.zeros(runs)
-        
-       for t in range(runs):
+def run_algo_TS(algo, bandit, N, runs):
+    cumulative_rewards = np.zeros(runs)
+    cumulative_regret = np.zeros(runs)
+    for sim in range(N):
+        algo.initialize(bandit.k)
+        new_c_rewards = np.zeros(runs)
+        new_c_regrets = np.zeros(runs)
+        for t in range(runs):
            chosen_arm = algo.select_arm()
-           reward = arms[chosen_arm].draw()
-           regret = 1-reward
+           reward = bandit.draw(chosen_arm)
+           regret = bandit.regret(chosen_arm)
            if t == 0:
              new_c_rewards[t] = reward
              new_c_regrets[t] = regret
@@ -116,28 +130,29 @@ def run_algo_TS(algo, arms, N, runs):
              new_c_rewards[t] = new_c_rewards[t-1] + reward
              new_c_regrets[t] = new_c_regrets[t-1] + regret
            algo.update(chosen_arm, reward)
-        
-       cumulative_rewards += new_c_rewards
-       cumulative_regret += new_c_regrets
+
+        cumulative_rewards += new_c_rewards
+        cumulative_regret += new_c_regrets
     
-   return [cumulative_rewards/N, cumulative_regret/N]
+    return [cumulative_rewards/N, cumulative_regret/N]
     
     
     
-    N = 10
+N = 10
 runs = 1000
 
 mu = [0.3, 0.2, 0.9, 0.15, 0.35]
-arms = list(map(lambda m: BernoulliArm(m), mu))
+#arms = list(map(lambda m: BernoulliArm(m), mu))
+bandit = BernoulliBandit(mu)
 
-rewards_UCB = np.zeros(k)
+rewards_UCB = np.zeros(len(mu))
 c_ucb = 0.5
 
 UCB = MAB_ucb(len(mu), c_ucb)
-results_UCB = run_algo_UCB(UCB,arms,rewards_UCB, N, runs)
+results_UCB = run_algo_UCB(UCB, bandit, rewards_UCB, N, runs)
 
 TS = MAB_thompson(len(mu))
-results_TS = run_algo(TS, arms, N, runs)
+results_TS = run_algo_TS(TS, bandit, N, runs)
 
 cumulative_regret_UCB = results_UCB[1]
 cumulative_regret_TS = results_TS[1]
@@ -151,4 +166,5 @@ plt.xlabel("Trials")
 plt.ylabel("Cumulative Regret")
 plt.title("Average Cumulative Regret " 
           + str(N) + " Runs")
-plt.show()
+#plt.show()
+plt.savefig('mab_test.pdf')
