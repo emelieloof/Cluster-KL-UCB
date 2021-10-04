@@ -32,6 +32,18 @@ class BernoulliBandit:
 def KL(p,q):
     return ((p*np.log(p/q))+((1-p)*np.log((1-p)/(1-q))))
     
+def get_bounds(counts, rewards, k, t):
+  Q = np.zeros(k)
+  q = np.linspace(0,1,200)
+  for i in range(k):
+    q_index = 0
+    prod = counts[i]*KL(rewards[i]/counts[i],q[q_index])
+    while prod < np.log(t):
+      q_index += 1 
+      prod = counts[i]*KL(rewards[i]/counts[i],q[q_index])
+    Q[i] = q[q_index-1]
+  return Q
+    
     
 class MAB_KL_UCB:
 
@@ -45,25 +57,22 @@ class MAB_KL_UCB:
       self.steps = 1
       self.counts = np.zeros(k)
         
-    def select_arm(self, rewards, counts, initial_rewards):
+    def select_arm(self, rewards, counts, k, t):
         if self.steps <= self.k:
             arm = self.steps - 1
         else:
-            bounds = counts*KL(rewards/counts,initial_rewards)
-            for i in range(len(bounds)):
-              if bounds[i] > np.log(self.steps) + self.c*np.log(np.log(self.steps)):
-                bounds[i] = 0
+            bounds = get_bounds(counts, rewards, k, t)
             arm = np.argmax(bounds)
         return arm
       
-    
     def update(self,arm):
         self.steps += 1
         self.counts[arm] += 1
+      
+    
         
         
 def run_algo_KL_UCB(algo, bandit, rewards, N, runs, ):
-  rewards_0 = rewards
   cumulative_rewards = np.zeros(runs)
   cumulative_regret = np.zeros(runs)
   for sim in range(N):
@@ -72,7 +81,7 @@ def run_algo_KL_UCB(algo, bandit, rewards, N, runs, ):
     new_c_regrets = np.zeros(runs)
     counts = np.zeros(bandit.k_a*bandit.k_c)
     for t in range(runs):
-      chosen_arm = algo.select_arm(rewards, counts, rewards_0)
+      chosen_arm = algo.select_arm(rewards, counts,bandit.k_a*bandit.k_c, t)
       counts[chosen_arm] += 1
       reward = bandit.draw(math.floor(chosen_arm/bandit.k_a), np.int(chosen_arm%bandit.k_a ))
       regret = bandit.regret(math.floor(chosen_arm/bandit.k_a), np.int(chosen_arm%bandit.k_a ))
@@ -89,9 +98,8 @@ def run_algo_KL_UCB(algo, bandit, rewards, N, runs, ):
     cumulative_regret += new_c_regrets
     
   return [cumulative_rewards/N, cumulative_regret/N]
+    
   
-  
-
 # data comes from the paper "Categorized Bandits"
 data = np.array([[5, 4, 4, 4, 4, 4, 3, 3, 3, 2], [4.5, 3, 3, 3, 3, 3, 3, 3, 3, 0], [4.5, 3, 3, 3, 3, 3, 3, 3, 3, 0], [4.5, 3, 3, 3, 3, 3, 3, 3, 3, 0], [4.5, 3, 3, 3, 3, 3, 3, 3, 3, 0]])
 data = data/np.max(data) #since we have bernoulli bandits
