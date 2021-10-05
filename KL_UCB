@@ -30,18 +30,30 @@ class BernoulliBandit:
         return self.sub_optimality[cluster, arm]
 
 def KL(p,q):
+  if p == 0:
+    return np.log(1/(1-q))
+  if p == 1:
+    return np.log(p/q)
+  else:
     return ((p*np.log(p/q))+((1-p)*np.log((1-p)/(1-q))))
-    
+
 def get_bounds(counts, rewards, k, t):
   Q = np.zeros(k)
-  q = np.linspace(0,1,200)
+  epsilon = 0.001
   for i in range(k):
-    q_index = 0
-    prod = counts[i]*KL(rewards[i]/counts[i],q[q_index])
-    while prod < np.log(t):
-      q_index += 1 
-      prod = counts[i]*KL(rewards[i]/counts[i],q[q_index])
-    Q[i] = q[q_index-1]
+    mean_i = rewards[i]/counts[i]
+    q = np.linspace(mean_i + epsilon,1 - epsilon,200)
+    low = 0
+    high = len(q)-1
+    while high > low:
+      mid = round((low+high)/2)
+      prod = counts[i]*KL(mean_i,q[mid])
+      if prod < np.log(t):
+        low = mid + 1
+      else:
+        high = mid - 1
+      
+    Q[i] = q[low]
   return Q
     
     
@@ -100,10 +112,8 @@ def run_algo_KL_UCB(algo, bandit, rewards, N, runs, ):
   return [cumulative_rewards/N, cumulative_regret/N]
     
   
-# data comes from the paper "Categorized Bandits"
-data = np.array([[5, 4, 4, 4, 4, 4, 3, 3, 3, 2], [4.5, 3, 3, 3, 3, 3, 3, 3, 3, 0], [4.5, 3, 3, 3, 3, 3, 3, 3, 3, 0], [4.5, 3, 3, 3, 3, 3, 3, 3, 3, 0], [4.5, 3, 3, 3, 3, 3, 3, 3, 3, 0]])
-data = data/np.max(data) #since we have bernoulli bandits
-
+#data = np.array([[0.75, 0.6, 0.55], [0.5, 0.3, 0.2], [0.15,0.18, 0.1]]) #Strong-dominance
+data = np.array([[0.75,0.62, 0.55],[0.58, 0.47, 0.38], [0.41, 0.31, 0.24]]) #overlap
 N = 10
 runs = 1000
 
