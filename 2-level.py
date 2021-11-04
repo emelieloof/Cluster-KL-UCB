@@ -40,17 +40,39 @@ def kl(p, q):
         return ((p * np.log(p / q)) + ((1 - p) * np.log((1 - p) / (1 - q))))
 
 
-def get_bounds(counts, rewards, k, t):
+def get_bounds_cluster(counts, rewards, k, type, t):
     Q = np.zeros(k)
     epsilon = 0.001
     for i in range(k):
-        mean_i = rewards[i] / counts[i]
+        if type == 'avg':
+            mean_i = rewards[i] / (counts[i]*k)
+        else:
+            mean_i = rewards[i] / counts[i]
         q = np.linspace(mean_i + epsilon, 1 - epsilon, 200)
         low = 0
         high = len(q) - 1
         while high > low:
             mid = round((low + high) / 2)
-            prod = np.sum(counts[i] * kl(mean_i, q[mid]))
+            prod = np.sum((counts[i]) * (kl(mean_i, q[mid])))
+            if prod < np.log(t):
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        Q[i] = q[low]
+    return Q
+
+def get_bounds_arms(counts, rewards, k, t):
+    Q = np.zeros(k)
+    epsilon = 0.001
+    for i in range(k):
+        mean_i = rewards[i] / (counts[i])
+        q = np.linspace(mean_i + epsilon, 1 - epsilon, 200)
+        low = 0
+        high = len(q) - 1
+        while high > low:
+            mid = round((low + high) / 2)
+            prod = np.sum((counts[i]) * (kl(mean_i, q[mid])))
             if prod < np.log(t):
                 low = mid + 1
             else:
@@ -161,14 +183,19 @@ class TwolevelKLUCB:
             elif self.which_type == 'max':
                 cluster_values[i] = np.max(self.rewards[i, :])
             elif self.which_type == 'avg':
-                cluster_values[i] = np.sum(self.rewards[i, :]) / self.k
+                cluster_values[i] = np.sum(self.rewards[i, :])
         test = cluster_values
         return cluster_values
 
     def get_cluster_counts(self):
         cluster_counts = np.zeros(self.c)
         for i in range(self.c):
-            cluster_counts[i] = np.sum(self.counts[i, :])
+            if self.which_type == 'min':
+                cluster_counts[i] = self.counts[i, np.argmin(self.rewards[i, :])]
+            elif self.which_type == 'max':
+                cluster_counts[i] = self.counts[i, np.argmax(self.rewards[i, :])]
+            elif self.which_type == 'avg':
+                cluster_counts[i] = np.sum(self.counts[i, :])/self.k
         test = cluster_counts
         return cluster_counts
 
@@ -178,7 +205,7 @@ class TwolevelKLUCB:
         else:
             cluster_rep = self.get_cluster_representations()
             cluster_counts = self.get_cluster_counts()
-            bounds = get_bounds(cluster_counts, cluster_rep, self.c, t)
+            bounds = get_bounds_cluster(cluster_counts, cluster_rep, self.k, self.which_type, t)
             cluster = np.argmax(bounds)
         test = cluster
         return cluster
@@ -187,7 +214,7 @@ class TwolevelKLUCB:
         if t < self.k * self.c:
             arm = t % self.k
         else:
-            bounds = get_bounds(self.counts[cluster, :], self.rewards[cluster, :], self.k, t)
+            bounds = get_bounds_arms(self.counts[cluster, :], self.rewards[cluster, :], self.k, t)
             arm = np.argmax(bounds)
         test = arm
         return arm
@@ -209,7 +236,7 @@ T = 1000
 runs = 5
 
 data = generate_clusters(10, 10, optimal=0.6)
-# data = np.array([[0.2, 0.3, 0.35], [0.7, 0.6, 0.65]])
+#data = np.array([[0.2, 0.3, 0.35], [0.7, 0.6, 0.65]])
 bandit = BernoulliBandit(data)
 TS = TwolevelTS(data.shape[1], data.shape[0], T)
 KLUCB_min = TwolevelKLUCB(data.shape[1], data.shape[0], 'min', T)
