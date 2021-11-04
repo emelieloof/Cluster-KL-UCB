@@ -40,12 +40,12 @@ def kl(p, q):
         return ((p * np.log(p / q)) + ((1 - p) * np.log((1 - p) / (1 - q))))
 
 
-def get_bounds_cluster(counts, rewards, k, type, t):
+def get_bounds_cluster(counts, rewards, k, c, type, t):
     Q = np.zeros(k)
     epsilon = 0.001
-    for i in range(k):
+    for i in range(c):
         if type == 'avg':
-            mean_i = rewards[i] / (counts[i]*k)
+            mean_i = rewards[i] / (counts[i] * k)
         else:
             mean_i = rewards[i] / counts[i]
         q = np.linspace(mean_i + epsilon, 1 - epsilon, 200)
@@ -61,6 +61,7 @@ def get_bounds_cluster(counts, rewards, k, type, t):
 
         Q[i] = q[low]
     return Q
+
 
 def get_bounds_arms(counts, rewards, k, t):
     Q = np.zeros(k)
@@ -195,7 +196,7 @@ class TwolevelKLUCB:
             elif self.which_type == 'max':
                 cluster_counts[i] = self.counts[i, np.argmax(self.rewards[i, :])]
             elif self.which_type == 'avg':
-                cluster_counts[i] = np.sum(self.counts[i, :])/self.k
+                cluster_counts[i] = np.sum(self.counts[i, :]) / self.k
         test = cluster_counts
         return cluster_counts
 
@@ -205,7 +206,7 @@ class TwolevelKLUCB:
         else:
             cluster_rep = self.get_cluster_representations()
             cluster_counts = self.get_cluster_counts()
-            bounds = get_bounds_cluster(cluster_counts, cluster_rep, self.k, self.which_type, t)
+            bounds = get_bounds_cluster(cluster_counts, cluster_rep, self.k, self.c, self.which_type, t)
             cluster = np.argmax(bounds)
         test = cluster
         return cluster
@@ -232,11 +233,11 @@ class TwolevelKLUCB:
 
 ########### TO RUN ##############
 
-T = 1000
+T = 2000
 runs = 5
 
-data = generate_clusters(10, 10, optimal=0.6)
-#data = np.array([[0.2, 0.3, 0.35], [0.7, 0.6, 0.65]])
+#data = generate_clusters(5, 5, optimal=0.6)
+data = np.array([[0.2, 0.3, 0.35], [0.7, 0.6, 0.65]])
 bandit = BernoulliBandit(data)
 TS = TwolevelTS(data.shape[1], data.shape[0], T)
 KLUCB_min = TwolevelKLUCB(data.shape[1], data.shape[0], 'min', T)
