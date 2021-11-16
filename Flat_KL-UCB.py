@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import random as rnd
+import math as m
 
 
 class BernoulliArm:
@@ -18,7 +19,7 @@ class BernoulliBandit:
     def __init__(self, theta):
         suboptimality = []
         for i in range(len(theta)):
-            suboptimality.append([x1 - x2 for (x1, x2) in zip([max(max(theta))]*len(theta[i]), theta[i])])
+            suboptimality.append([x1 - x2 for (x1, x2) in zip([max(max(theta))] * len(theta[i]), theta[i])])
         self.sub_optimality = suboptimality
         arms = []
         for i in range(len(theta)):
@@ -33,91 +34,32 @@ class BernoulliBandit:
 
 
 def kl(p, q):
-    if p == 0:
-        return np.log(1 / (1 - q))
-    if p == 1:
-        return np.log(p / q)
-    else:
-        return ((p * np.log(p / q)) + ((1 - p) * np.log((1 - p) / (1 - q))))
-
-
-def get_means(rewards, counts):
-    means = []
-    for i in range(len(rewards)):
-        to_append = []
-        for j in range(len(rewards[i])):
-            to_append.append(rewards[i][j]/counts[i][j])
-        means.append(to_append)
-    return means
-
-
-def get_bounds(counts, rewards, cluster_belongings, k, t):
-    Q = []
-    for i in range(len(counts)):
-        Q.append([0]*len(counts[i]))
-
-    epsilon = 0.001
-    means = get_means(rewards,counts)
-    max_cluster = means.index(max(means))
-    for i in range(len(counts)):
-        for j in range(len(counts[i])):
-            q = np.linspace(means[i][j] + epsilon, 1 - epsilon, 200)
-            low = 0
-            high = len(q) - 1
-            while high > low:
-                mid = round((low + high) / 2)
-                prod = np.sum((counts[i][j]) * (kl(means[i][j], q[mid])))
-                if prod < np.log(t):
-                   low = mid + 1
-                else:
-                    high = mid - 1
-            current_q = q[low]
-            current_cluster = cluster_belongings[i]
-            if not i == max_cluster:
-                if (current_q < np.max(means[max_cluster]) and current_q > np.min(means[max_cluster])):
-                    current_q = np.min(means[max_cluster])
-                elif current_q > np.max(means[max_cluster]): #you are here
-                    cluster_sum = sum(counts[current_cluster])-counts[i][j]
-                    C = cluster_sum*get_kl(means[current_cluster], np.max(means[max_cluster]))
-                    if not prod + C < np.log(t):
-                        current_q = np.min(means[max_cluster])
-            Q[i][j] = current_q
-    return Q
-
-def get_kl(means, max_mean):
-    sum = 0
-    for i in range(len(means)):
-        sum += kl(means[i], max_mean)
-    return sum
-
-def generate_clusters(arms, clusters, optimal):
     epsilon = 0.0001
-    w = 0.1
-    d = 0.1
-    data = []
-    optimal_cluster = list(np.random.uniform(optimal - w + epsilon, optimal - epsilon, arms))
-    index = rnd.randint(0,arms-1)
-    optimal_cluster[index] = optimal
-    data.append(optimal_cluster)
-    for i in range(clusters - 1):
-        data.append(list(np.random.uniform(optimal - 2 * w - d, optimal - w - d, arms)))
-    return data
+    if p == 0:
+        p += epsilon
+    elif p == 1:
+        p -= epsilon
+    elif q == 0:
+        q += epsilon
+    elif q == 1:
+        q -= epsilon
+    return (p * m.log2(p / q)) + ((1 - p) * m.log2((1 - p) / (1 - q)))
 
-
-############FLAT-KLUCB#################
 
 class FlatKLUCB:
 
-    def __init__(self, data, T):
-        self.steps = 1
+    def __init__(self, data):
         counts = []
         rewards = []
+        arms = 0
         for i in range(len(data)):
-            counts.append([0]*len(data[i]))
-            rewards.append([0]*len(data[i]))
+            counts.append([0] * len(data[i]))
+            rewards.append([0] * len(data[i]))
+            arms += len(data[i])
         self.counts = counts
         self.rewards = rewards
-        self.c_regret = [0]*T
+        self.regret = []
+        self.num_arms = arms
 
         cluster_belongings = [0] * np.sum([len(i) for i in self.rewards])
         index = 0
@@ -135,9 +77,7 @@ class FlatKLUCB:
                 index += 1
         self.arm_belongings = arm_belongings
 
-
-    def initialize(self, data, T):
-        self.steps = 1
+    def initialize(self, data):
         counts = []
         rewards = []
         for i in range(len(data)):
@@ -145,72 +85,110 @@ class FlatKLUCB:
             rewards.append([0] * len(data[i]))
         self.counts = counts
         self.rewards = rewards
-        self.c_regret = [0]*T
-
+        self.regret = []
 
     def select_arm(self, t):
-        if t < np.sum([len(i) for i in self.rewards]):
+        if t < self.num_arms:
             cluster = self.cluster_belongings[t]
             arm = self.arm_belongings[t]
         else:
-            bounds = get_bounds(self.counts, self.rewards,self.cluster_belongings, len(self.rewards), t)
-            cluster = bounds.index(max(bounds))
-            arm = bounds[cluster].index(max(bounds[cluster]))
+            means = self.get_means()
+            leader_c, leader_a = means.index(max(means)), np.argmax(max(means))
+            bounds = self.get_bounds(means, t)
+            bounds_c, bounds_a = bounds.index(max(bounds)), np.argmax(max(bounds))
+            if leader_c == bounds_c and leader_a == bounds_a:
+                cluster, arm = leader_c, leader_a
+            else:
+                cluster, arm = bounds_c, np.argmin(self.counts[bounds_c])
         return cluster, arm
 
-    def update(self, arm, cluster, reward, regret, t):
-        self.steps += 1
+    def get_means(self):
+        means = []
+        for i in range(len(self.counts)):
+            curr = []
+            for j in range(len(self.counts[i])):
+                curr.append(self.rewards[i][j] / self.counts[i][j])
+            means.append(curr)
+        return means
+
+    def get_bounds(self, means, t):
+        Q = []
+        for i in range(len(means)):
+            Q.append([0] * len(means[i]))
+
+        epsilon = 0.001
+        max_cluster = means.index(max(means))
+        for i in range(len(means)):
+            for j in range(len(means[i])):
+                q = np.linspace(means[i][j] + epsilon, 1 - epsilon, 200)
+                low = 0
+                high = len(q) - 1
+                while high > low:
+                    mid = round((low + high) / 2)
+                    prod = np.sum((self.counts[i][j]) * (kl(means[i][j], q[mid])))
+                    if prod < np.log(t):
+                        low = mid + 1
+                    else:
+                        high = mid - 1
+                Q[i][j] = q[low]
+
+        max_q = max(Q[max_cluster])
+        for i in range(len(means)):
+            if not i == max_cluster:
+                if np.any(np.array(Q[i]) > max_q):
+                    max_index = np.argmax(Q[i])
+                    K_c = self.get_kl(i, max_index, means, max_cluster)
+                    prod = np.sum((self.counts[i][max_index]) * (kl(means[i][max_index], Q[i][max_index])))
+                    if not prod + K_c < np.log(t):
+                        Q[i][max_index] = min(means[max_cluster])
+        return Q
+
+    def get_kl(self, i, j, means, max_cluster):
+        sum = 0
+        for k in range(len(self.counts[i])):
+            sum += self.counts[i][k] * kl(means[i][k], max(means[max_cluster]))
+        sum -= self.counts[i][j] * kl(means[i][j], max(means[max_cluster]))
+        return sum
+
+    def update(self, arm, cluster, reward, regret):
         self.counts[cluster][arm] += 1
         self.rewards[cluster][arm] += reward
-        if t == 0:
-            self.c_regret[t] = regret
-        else:
-            self.c_regret[t] = self.c_regret[t - 1] + regret
-        return
+        self.regret.append(regret)
 
 
 ########### TO RUN ##############
 
-T = 5000
-runs = 2
+T = 10000
+runs = 10
 
-
-data = [[0.2, 0.3, 0.35], [0.7, 0.8, 0.6]]
+data = [[0.2, 0.3, 0.35, 0.38, 0.28], [0.3, 0.41, 0.36, 0.26, 0.38], [0.72, 0.81, 0.78, 0.69, 0.75],[0.33, 0.27, 0.41, 0.39, 0.37], [0.32, 0.17, 0.28, 0.36, 0.28]]
+#data = [[0.2, 0.3, 0.35], [0.7, 0.8, 0.6], [0.32, 0.17, 0.28]]
 bandit = BernoulliBandit(data)
 
 data_rep = []
 for i in range(len(data)):
-    data_rep.append([0]*len(data[i]))
+    data_rep.append([0] * len(data[i]))
 
-Flat_KLUCB = FlatKLUCB(data_rep,T)
-
-c_regret = [0]*T
-
-
+Flat_KLUCB = FlatKLUCB(data_rep)
+c_regret_flat = []
 for i in range(runs):
-    Flat_KLUCB.initialize(data_rep, T)
-
-
+    Flat_KLUCB.initialize(data_rep)
     for t in range(T):
         cluster, arm = Flat_KLUCB.select_arm(t)
         reward = bandit.draw(cluster, arm)
         regret = bandit.regret(cluster, arm)
+        Flat_KLUCB.update(arm, cluster, reward, regret)
 
-        Flat_KLUCB.update(arm, cluster, reward, regret, t)
-
-        c_regret[t] += Flat_KLUCB.c_regret[t]
-
+    c_regret_flat.append(np.cumsum(Flat_KLUCB.regret))
 
 
-
-c_regret = [x / runs for x in c_regret]
-
-
+c_regret_flat = [sum(x) for x in zip(*c_regret_flat)]
+c_regret_flat = [c_regret_flat[i] / runs for i in range(len(c_regret_flat))]
 
 ########## PLOTTING #######
 
 plt.figure(figsize=(12, 8))
-plt.plot(c_regret, label='FLat-KLUCB')
+plt.plot(c_regret_flat, label='FLat-KLUCB')
 
 plt.legend(loc='upper left')
 plt.xlabel("Trials")
