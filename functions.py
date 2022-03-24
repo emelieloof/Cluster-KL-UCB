@@ -42,7 +42,7 @@ def kl(p, q):  # function to get the kl-divergence between p and q
         q += epsilon
     elif q == 1:
         q -= epsilon
-    return (p * m.log2(p / q)) + ((1 - p) * m.log2((1 - p) / (1 - q)))
+    return (p * m.log(p / q)) + ((1 - p) * m.log((1 - p) / (1 - q)))
 
 
 def run_experiment(algo, data_rep, runs, T, bandit, order):
