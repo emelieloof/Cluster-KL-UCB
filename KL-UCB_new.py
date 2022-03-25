@@ -48,7 +48,8 @@ class KLUCB:
         else:
             means = self.get_means()
             bounds = self.get_bounds(means, t)
-            cluster, arm = bounds.index(max(bounds)), np.argmax(max(bounds))
+            max_q_index = self.get_max_index(bounds)
+            cluster, arm = max_q_index[0], max_q_index[1]
 
         return cluster, arm
 
@@ -91,9 +92,9 @@ class KLUCB:
                 return Q
             else:
                  for i in range(len(means)):# looping through the clusters
-                    if not i == max_mean_index[0] and np.any(Q[i] > np.max(Q[max_mean_index[0]])):# checking if we're in the optimal cluster and if any of the q-values are greater than the q- value of the optimal arm
+                    if not i == max_mean_index[0] and np.any(Q[i] >= np.max(Q[max_mean_index[0]])):# checking if we're in the optimal cluster and if any of the q-values are greater than the q- value of the optimal arm
                         for j in range(len(means[i])): #looping through the cluster
-                            if Q[i][j] > np.max(Q[max_mean_index[0]]): #checking if the q-value of the current arm is greater than the q-value of the optimal arm 
+                            if Q[i][j] >= np.max(Q[max_mean_index[0]]): #checking if the q-value of the current arm is greater than the q-value of the optimal arm 
                                 limit = self.get_limit([i, j], max_mean_index, Q, means) # calculating the penalty term
                                 if not limit < np.log(t) + np.log(np.log(t)): #checking if condition holds
                                     Q[i][j] = min(means[max_mean_index[0]]) # if it doesn't hold lower the q-value so it doesn't get 
