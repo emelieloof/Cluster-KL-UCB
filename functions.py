@@ -38,7 +38,7 @@ def kl(p, q):  # function to get the kl-divergence between p and q
         p += epsilon
     elif p == 1:
         p -= epsilon
-    elif q == 0:
+    lif q == 0:
         q += epsilon
     elif q == 1:
         q -= epsilon
