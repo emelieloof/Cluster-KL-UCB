@@ -12,10 +12,10 @@ data_rep = []
 for i in range(len(data)):
     data_rep.append([0] * len(data[i]))
 
-ord_klucb = klucb.KLUCB(data_rep, False, 0)
+ord_klucb = klucb.KLUCB(data_rep, False, 0) #Create algos
 flat_klucb = klucb.KLUCB(data_rep, True, 0)
 
-results_ord_klucb = fun.run_experiment(ord_klucb, data_rep, runs, T, bandit, 0)
+results_ord_klucb = fun.run_experiment(ord_klucb, data_rep, runs, T, bandit, 0) #run algos
 results_flat_klucb = fun.run_experiment(flat_klucb, data_rep, runs, T, bandit, 1)
 
 plt.figure(figsize=(12, 8))
