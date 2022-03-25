@@ -115,11 +115,16 @@ class KLUCB:
                      fun.kl(means[max_q_index[0]][max_q_index[1]], Q[max_q_index[0]][max_q_index[1]])
         return kl_sum + max_q_prod
 
-    def get_max_index(self, l): # Function to get the max index of an uneven list
+        def get_max_index(self, l, isq, optimal_cluster): # function to get max index of uneven list
+        if isq: 
+            for i in range(len(l)):
+                if not i == optimal_cluster: # Want to make sure we get the optimal cluster as optimal
+                    for j in range(len(l[i])):
+                        l[i][j] == 0
         new_list = self.reshape(l)
         max_index = np.argmax(new_list)
-        return self.cluster_belongings[max_index], self.arm_belongings[max_index]
 
+        return self.cluster_belongings[max_index], self.arm_belongings[max_index]
     def reshape(self, list):# Function to reshape an uneven list
         new_list = np.zeros(len(self.arm_belongings))
         index = 0
