@@ -38,20 +38,20 @@ def kl(p, q):  # function to get the kl-divergence between p and q
         p += epsilon
     elif p == 1:
         p -= epsilon
-    lif q == 0:
+    if q == 0:
         q += epsilon
     elif q == 1:
         q -= epsilon
     return (p * m.log(p / q)) + ((1 - p) * m.log((1 - p) / (1 - q)))
 
 
-def run_experiment(algo, data_rep, runs, T, bandit, order):
-    c_regret = []
-    bars = []
+def run_experiment(algo, data_rep, runs, T, bandit, order): #This functions runs the experiment
+    c_regret = [] #Here goes the regret
+    bars = [] #Here goes the values for the error bars
     for i in range(runs):
         algo.initialize(data_rep)
-        algo_list = []
-        x = []
+        algo_list = [] #here is the y-value for the error bars
+        x = [] #here goes the x-values for the error bars
         for t in range(T):
             cluster, arm = algo.select_arm(t)
             reward = bandit.draw(cluster, arm)
@@ -60,21 +60,21 @@ def run_experiment(algo, data_rep, runs, T, bandit, order):
             p = t + 1
             if p % 2000 == 0:
                 algo_list.append(np.cumsum(algo.regret)[t - ((1 + order) * 100)])
-                x.append(t)
+                x.append(t - ((1 + order) * 100))
 
         bars.append(algo_list)
         c_regret.append(np.cumsum(algo.regret))
         print(i)
 
-    c_regret = [sum(x) for x in zip(*c_regret)]
-    c_regret = [c_regret[i] / runs for i in range(len(c_regret))]
+    c_regret = [sum(x) for x in zip(*c_regret)] #Cumulative regret
+    c_regret = [c_regret[i] / runs for i in range(len(c_regret))] #Divide by number of runs
 
     error = []
-    for i in range(len(bars[0])):
+    for i in range(len(bars[0])): #loop to divide the errors by numbr of runs
         error.append([np.std([bars[j][i] for j in range(len(bars))]) / runs,
                       np.std([bars[j][i] for j in range(len(bars))]) / runs])
 
     errors = [[error[i][0] for i in range(len(error))],
-                    [error[i][1] for i in range(len(error))]]
+                    [error[i][1] for i in range(len(error))]] # Get errors in correct format
 
     return c_regret, x, errors
